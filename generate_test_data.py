@@ -4,7 +4,7 @@
 # Imports
 # -----------------------------------------------------------------------------
 import numpy as np
-import os, os.path
+import os.path
 from recordingio import copy_recording_chunk
 
 # -----------------------------------------------------------------------------
