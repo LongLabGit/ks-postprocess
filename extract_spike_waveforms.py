@@ -48,6 +48,10 @@ def _get_cluster_channels(templates, channel_map, channel_shank_map):
     return np.array(shank_channels)
 
 
+def _get_n_template_samples(templates):
+    return templates.shape[1]
+
+
 def _set_up_filter(order, highpass, lowpass, fs):
     return signal.butter(order, (highpass / (fs / 2.), lowpass / (fs / 2.)), 'bandpass')
 
@@ -72,6 +76,11 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     templates = np.load(os.path.join(folder, templates_name))
     channel_map = np.load(os.path.join(folder, channel_map_name))
     channel_shank_map = np.load(os.path.join(folder, channel_shank_map_name))
+    template_samples = _get_n_template_samples(templates)
+    if wf_samples != template_samples:
+        e = 'Number of waveform samples (%d) does not match template samples (%d)' \
+        % (wf_samples, template_samples)
+        raise ValueError(e)
 
     # figure out on which channels which template can be found
     cluster_channels = _get_cluster_channels(templates, channel_map, channel_shank_map)
