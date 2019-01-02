@@ -23,6 +23,8 @@ spikeclusters_name = 'spike_clusters.npy'
 templates_name = 'templates.npy'
 channel_map_name = 'channel_map.npy'
 channel_shank_map_name = 'channel_shank_map.npy'
+params_name = 'params.py'
+new_params_name = 'params_extracted_wf.py'
 
 filter_order = 3
 high_pass = 500.0 # KiloSort default
@@ -35,6 +37,7 @@ def _get_cluster_channels(templates, channel_map, channel_shank_map):
     # first marginalize across samples, then channels (one dimension less after first marginalize)
     max_channels = np.argmax(np.max(np.abs(templates), axis=1), axis=1)
 
+    # TODO: check if this logic is actually correct
     shank_channels = []
     for channel in max_channels:
         original_channel = np.where(channel_map == channel)
@@ -125,6 +128,16 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     extract_wf_file.flush()
 
 
+def write_new_param_file(folder, name, new_name):
+    name = os.path.join(folder, name)
+    new_name = os.path.join(folder, new_name)
+
+    with open(name, 'r') as in_:
+        new_str = in_.read().replace(recording_name, extract_wf_name)
+    with open(new_name, 'w') as out_:
+        out_.write(new_str)
+
+
 # command line usage
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -140,6 +153,8 @@ if __name__ == '__main__':
     parser.add_argument('--tname')
     parser.add_argument('--chanmap')
     parser.add_argument('--chanshmap')
+    parser.add_argument('--param')
+    parser.add_argument('--paramnew')
 
     args = parser.parse_args()
 
@@ -157,6 +172,11 @@ if __name__ == '__main__':
         channel_map_name = args.chanmap
     if args.chanshmap:
         channel_shank_map_name = args.chanshmap
+    if args.param:
+        params_name = args.param
+    if args.paramnew:
+        new_params_name = args.paramnew
 
     dir_ = ' '.join(args.dir)
     extract_cluster_waveforms(dir_, args.nchan, args.fs, args.wfsamp, np.dtype(args.dtype))
+    write_new_param_file(dir_, params_name, new_params_name)
