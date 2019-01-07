@@ -19,7 +19,7 @@ import argparse
 recording_name = 'amplifier.dat'
 extract_wf_name = 'extracted_wf.dat'
 spiketimes_name = 'spike_times.npy'
-spikeclusters_name = 'spike_clusters.npy'
+spikeclusters_name = 'spike_templates.npy'
 templates_name = 'templates.npy'
 channel_map_name = 'channel_map.npy'
 channel_shank_map_name = 'channel_shank_map.npy'
@@ -37,15 +37,13 @@ def _get_cluster_channels(templates, channel_map, channel_shank_map):
     # first marginalize across samples, then channels (one dimension less after first marginalize)
     max_channels = np.argmax(np.max(np.abs(templates), axis=1), axis=1)
 
-    # TODO: check if this logic is actually correct
     shank_channels = []
     for channel in max_channels:
-        original_channel = np.where(channel_map == channel)
-        shank = channel_shank_map[original_channel]
+        shank = channel_shank_map[channel]
         shank_channels_ = np.where(channel_shank_map == shank)
         shank_orig_channels = []
         for shank_ch in shank_channels_[0]:
-            shank_orig_channels.append(np.where(channel_map == shank_ch)[0])
+            shank_orig_channels.append(channel_map[shank_ch])
         shank_channels.append(shank_orig_channels)
 
     return np.array(shank_channels)
@@ -153,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument('--outname', nargs='+')
     parser.add_argument('--stname')
     parser.add_argument('--scname')
-    parser.add_argument('--tname')
+    parser.add_argument('--tempname')
     parser.add_argument('--chanmap')
     parser.add_argument('--chanshmap')
     parser.add_argument('--param')
@@ -169,8 +167,8 @@ if __name__ == '__main__':
         spiketimes_name = args.stname
     if args.scname:
         spikeclusters_name = args.scname
-    if args.tname:
-        templates_name = args.tname
+    if args.tempname:
+        templates_name = args.tempname
     if args.chanmap:
         channel_map_name = args.chanmap
     if args.chanshmap:
