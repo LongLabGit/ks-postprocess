@@ -20,7 +20,7 @@ def load_recording(fname, nchannels, dtype=np.dtype('int16')):
     file_info = os.stat(fname)
     file_size = file_info.st_size
     nsamples = int(file_size / (dtype.itemsize * nchannels))
-    return np.memmap(fname, dtype=dtype.name, mode='r', shape=(nchannels, nsamples), order='F')
+    return np.memmap(fname, dtype=dtype.name, mode='r', shape=(int(nchannels), int(nsamples)), order='F')
 
 
 def copy_recording_chunk(fname, outname, nchannels, chunk_start, chunk_stop, fs, dtype=np.dtype('int16')):

@@ -89,11 +89,11 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     cluster_channels = _get_cluster_channels(templates, channel_map, channel_shank_map)
 
     # create binary file where we can paste all spike waveforms
-    new_samples = wf_samples*len(spike_times)
+    new_samples = wf_samples * len(spike_times)
     min_shank_id = np.min(channel_shank_map)
     channels_per_shank = np.sum(channel_shank_map == min_shank_id)
     extract_wf_file = np.memmap(os.path.join(folder, extract_wf_name), dtype=dtype.name, mode='w+',
-                                shape=(channels_per_shank, new_samples), order='F')
+                                shape=(int(channels_per_shank), int(new_samples)), order='F')
 
     # load recording data file
     rec_file = load_recording(os.path.join(folder, recording_name), nchannels)
@@ -102,11 +102,11 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     rec_samples = int(rec_file_size / (dtype.itemsize * nchannels))
 
     # set up high-pass filter
-    b, a = _set_up_filter(filter_order, high_pass, low_pass*fs, fs)
+    b, a = _set_up_filter(filter_order, high_pass, low_pass * fs, fs)
     bp_filter = lambda x: signal.filtfilt(b, a, x, axis=0)
 
     # main loop
-    wf_offset = wf_samples//2
+    wf_offset = wf_samples // 2
     for i, spike_sample in enumerate(tqdm(spike_times)):
         spike_cluster = spike_clusters[i]
         wf = np.zeros((channels_per_shank, wf_samples), dtype=dtype.name, order='F')
@@ -118,12 +118,12 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
         # uint64 converted silently to float64 when adding an int - cast to int64
         stop_index_ = np.int64(spike_sample) + wf_offset + 1
         stop_index, stop_diff = (stop_index_, 0) if stop_index_ < rec_samples \
-                            else (rec_samples, rec_samples - stop_index_)
+                            else (rec_samples, stop_index_ - rec_samples)
         # now copy the appropriately sized snippet from channels on same clusters
-        wf[:, start_diff:wf_samples-stop_diff] += rec_file[cluster_channels[spike_cluster].flatten(),
-                                                  start_index:stop_index]
+        wf[:, start_diff: wf_samples - stop_diff] += rec_file[cluster_channels[spike_cluster].flatten(),
+                                                            start_index: stop_index]
         # wf = bp_filter(wf) # takes about twice as long to filter every spike
-        extract_wf_file[:, i*wf_samples:(i+1)*wf_samples] = wf
+        extract_wf_file[:, i * wf_samples: (i + 1) * wf_samples] = wf
 
     extract_wf_file.flush()
 
