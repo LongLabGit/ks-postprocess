@@ -127,6 +127,9 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
 
     extract_wf_file.flush()
 
+    del rec_file
+    del extract_wf_file
+
 
 def write_new_param_file(folder, name, new_name):
     name = os.path.join(folder, name)
