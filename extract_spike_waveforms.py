@@ -50,7 +50,12 @@ def _get_cluster_channels(templates, channel_map, channel_shank_map):
 
 
 def _get_n_template_samples(templates):
-    return templates.shape[1]
+    # KiloSort output pads the template with zeros
+    # look at max channel of first template and count non-zero channels
+    # templates shape: (template, sample, channel)
+    max_channel = np.argmax(np.max(np.abs(templates), axis=1), axis=1)
+    n_template_samples = np.sum(templates[0, :, max_channel[0]] != 0)
+    return n_template_samples
 
 
 def _set_up_filter(order, highpass, lowpass, fs):
@@ -82,6 +87,9 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
         e = 'Number of waveform samples (%d) does not match template samples (%d)' \
         % (wf_samples, template_samples)
         raise ValueError(e)
+    if not wf_samples % 2:
+        e = 'Number of waveform samples (%d) has to be odd' % wf_samples
+        raise ValueError(e)
 
     # figure out on which channels which template can be found
     cluster_channels = _get_cluster_channels(templates, channel_map, channel_shank_map)
@@ -103,18 +111,24 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     b, a = _set_up_filter(filter_order, high_pass, low_pass * fs, fs)
     bp_filter = lambda x: signal.filtfilt(b, a, x, axis=0)
 
+    # wf_offset: spike time at center when wf_samples = 61.
+    # Otherwise KiloSort pads the template with zeros
+    # starting from the beginning. So we have to move
+    # the center of the extracted waveform accordingly
+    sample_diff = 61 - wf_samples
+    wf_offset_begin = (wf_samples - sample_diff) // 2
+    wf_offset_end = (wf_samples + sample_diff) // 2
     # main loop
-    wf_offset = wf_samples // 2
     for i, spike_sample in enumerate(tqdm(spike_times)):
         spike_cluster = spike_clusters[i]
         wf = np.zeros((channels_per_shank, wf_samples), dtype=dtype.name, order='F')
         # careful with the edge cases - zero-padding
         # uint64 converted silently to float64 when adding an int - cast to int64
-        start_index_ = np.int64(spike_sample) - wf_offset
+        start_index_ = np.int64(spike_sample) - wf_offset_begin - 1
         start_index, start_diff = (start_index_, 0) if start_index_ >= 0 \
                                 else (0, -start_index_)
         # uint64 converted silently to float64 when adding an int - cast to int64
-        stop_index_ = np.int64(spike_sample) + wf_offset + 1
+        stop_index_ = np.int64(spike_sample) + wf_offset_end
         stop_index, stop_diff = (stop_index_, 0) if stop_index_ < rec_samples \
                             else (rec_samples, stop_index_ - rec_samples)
         # now copy the appropriately sized snippet from channels on same clusters
