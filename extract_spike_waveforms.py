@@ -62,7 +62,7 @@ def _set_up_filter(order, highpass, lowpass, fs):
     return signal.butter(order, (highpass / (fs / 2.), lowpass / (fs / 2.)), 'bandpass')
 
 
-def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dtype('int16')):
+def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dtype('int16'), downsample=1):
     """
     for each spike time, look up cluster and corresponding channels,
     then extract samples around spike time (+- 0.5 nsamples) only on channels
@@ -74,18 +74,26 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     :param fs: sampling rate in Hz
     :param wf_samples: number of samples (odd) used in template waveforms (used to extract waveform; KS default: 61)
     :param dtype: data type of recording file (default: int16)
+    :param ds: downsampling factor; used for writing out fraction of spike times (default: 1; i.e., keep all spikes)
     :return: None
     """
     # load stuff
-    spike_times = np.load(os.path.join(folder, spiketimes_name)).flatten()
-    spike_clusters = np.load(os.path.join(folder, spikeclusters_name)).flatten()
+    spike_times_ = np.load(os.path.join(folder, spiketimes_name)).flatten()
+    spike_clusters_ = np.load(os.path.join(folder, spikeclusters_name)).flatten()
+    if downsample > 1:
+        print('Downsampling spike waveforms by a factor of %d' % downsample)
+        spike_times = spike_times_[:: downsample]
+        spike_clusters = spike_clusters_[:: downsample]
+    else:
+        spike_times = spike_times_
+        spike_clusters = spike_clusters_
     templates = np.load(os.path.join(folder, templates_name))
     channel_map = np.load(os.path.join(folder, channel_map_name))
     channel_shank_map = np.load(os.path.join(folder, channel_shank_map_name))
     template_samples = _get_n_template_samples(templates)
     if wf_samples != template_samples:
         e = 'Number of waveform samples (%d) does not match template samples (%d)' \
-        % (wf_samples, template_samples)
+            % (wf_samples, template_samples)
         raise ValueError(e)
     if not wf_samples % 2:
         e = 'Number of waveform samples (%d) has to be odd' % wf_samples
@@ -109,7 +117,8 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
 
     # set up high-pass filter
     b, a = _set_up_filter(filter_order, high_pass, low_pass * fs, fs)
-    bp_filter = lambda x: signal.filtfilt(b, a, x, axis=0)
+    def bp_filter(x):
+        return signal.filtfilt(b, a, x, axis=0)
 
     # wf_offset: spike time at center when wf_samples = 61.
     # Otherwise KiloSort pads the template with zeros
@@ -143,12 +152,15 @@ def extract_cluster_waveforms(folder, nchannels, fs, wf_samples=61, dtype=np.dty
     del extract_wf_file
 
 
-def write_new_param_file(folder, name, new_name):
+def write_new_param_file(folder, name, new_name, downsample=None):
     name = os.path.join(folder, name)
     new_name = os.path.join(folder, new_name)
 
     with open(name, 'r') as in_:
         new_str = in_.read().replace(recording_name, extract_wf_name)
+    if downsample is not None and downsample > 1:
+        new_str += '\n'
+        new_str += 'downsample = ' + str(downsample)
     with open(new_name, 'w') as out_:
         out_.write(new_str)
 
@@ -163,6 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('--dtype', default='int16')
     parser.add_argument('--recname', nargs='+')
     parser.add_argument('--outname', nargs='+')
+    parser.add_argument('--downsample', type=int, default=1)
     parser.add_argument('--stname')
     parser.add_argument('--scname')
     parser.add_argument('--tempname')
@@ -192,6 +205,10 @@ if __name__ == '__main__':
     if args.paramnew:
         new_params_name = args.paramnew
 
+    if args.downsample < 1:
+        e = 'Invalid downsampling value; has to be integer greater than 1'
+        raise ValueError(e)
+
     dir_ = ' '.join(args.dir)
-    extract_cluster_waveforms(dir_, args.nchan, args.fs, args.wfsamp, np.dtype(args.dtype))
-    write_new_param_file(dir_, params_name, new_params_name)
+    extract_cluster_waveforms(dir_, args.nchan, args.fs, args.wfsamp, np.dtype(args.dtype), args.downsample)
+    write_new_param_file(dir_, params_name, new_params_name, args.downsample)
